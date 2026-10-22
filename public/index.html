@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101312">
+    <meta name="description" content="A private live channel for moving commands and notes between your computers.">
+    <title>Relay — command room</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/clipboard.css">
+    <script src="/socket.io/socket.io.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div id="loginView" class="login-view" hidden>
+      <div class="login-orbit orbit-one"></div>
+      <div class="login-orbit orbit-two"></div>
+      <main class="login-card">
+        <a class="brand brand-login" href="/" aria-label="Relay home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>relay<span class="brand-period">.</span></span>
+        </a>
+        <div class="login-eyebrow"><span class="lock-icon" aria-hidden="true"></span> PRIVATE ROOM</div>
+        <h1>Pick up on<br>the other machine.</h1>
+        <p class="login-copy">A live, shared channel for commands and notes. Join with the password from the host computer.</p>
+        <form id="loginForm" class="login-form">
+          <label for="deviceName">This computer</label>
+          <input id="deviceName" name="deviceName" type="text" maxlength="32" autocomplete="nickname" placeholder="e.g. MacBook Pro" value="My computer">
+          <label for="roomPassword">Room password</label>
+          <div class="password-field">
+            <input id="roomPassword" name="password" type="password" autocomplete="current-password" required placeholder="Enter the shared password">
+            <button class="reveal-button" id="togglePassword" type="button" aria-label="Show password">SHOW</button>
+          </div>
+          <p id="loginError" class="form-error" role="alert" hidden></p>
+          <button id="joinButton" class="join-button" type="submit"><span>Join room</span><span aria-hidden="true">→</span></button>
+        </form>
+        <div class="login-foot"><span class="tiny-shield" aria-hidden="true">◆</span> Messages travel directly through your room server.</div>
+      </main>
+      <div class="login-side-note"><span class="live-pulse"></span> READY WHEN YOU ARE</div>
+    </div>
+
+    <div id="relayView" class="relay-view" hidden>
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Relay home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>relay<span class="brand-period">.</span></span>
+        </a>
+        <div class="topbar-room">
+          <span class="tiny-room-mark" aria-hidden="true">⌘</span>
+          <div><div class="topbar-room-name">Command room</div><div class="topbar-room-sub">PRIVATE CHANNEL</div></div>
+        </div>
+        <div class="topbar-actions">
+          <div id="connectionBadge" class="connection-badge is-connecting"><span class="status-dot"></span><span id="connectionLabel">Connecting</span></div>
+          <button id="shareButton" class="share-button" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4.5 10v5.5h11V10"/></svg><span>Copy room link</span></button>
+          <button id="logoutButton" class="icon-button logout-button" type="button" aria-label="Leave room" title="Leave room"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4.5v12H8M10 6.5l3.5 3.5-3.5 3.5M7 10h6.5"/></svg></button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="side-section-heading"><span>IN THIS ROOM</span><span id="onlineCount" class="count-pill">1</span></div>
+        <div id="deviceList" class="device-list" aria-live="polite"></div>
+        <div class="sidebar-divider"></div>
+        <div class="room-details">
+          <div class="side-section-heading">ROOM LINK</div>
+          <p>Open this address on your other computer, then enter the room password.</p>
+          <div class="link-preview"><span class="link-dot"></span><span id="shareAddress">Finding this computer…</span></div>
+          <button id="shareButtonSide" class="text-button" type="button"><span aria-hidden="true">↗</span> Copy invite link</button>
+        </div>
+        <div class="sidebar-spacer"></div>
+        <div class="privacy-card">
+          <span class="privacy-icon" aria-hidden="true">⌁</span>
+          <div><strong>Text only. No surprises.</strong><p>Commands are copied as text. Nothing runs on either computer.</p></div>
+        </div>
+        <div class="sidebar-foot"><span class="live-pulse"></span> TRUSTED NETWORK ONLY</div>
+      </aside>
+
+      <main class="workspace">
+        <div class="conversation-head">
+          <div><div class="conversation-kicker">LIVE CONVERSATION</div><h1>Pass it along<span class="brand-period">.</span></h1></div>
+          <div class="conversation-hint"><span class="keycap">↵</span> to send <span class="hint-separator">·</span> <span class="keycap">⇧ ↵</span> new line</div>
+        </div>
+        <section id="messageFeed" class="message-feed" aria-label="Messages" aria-live="polite" aria-relevant="additions text">
+          <div id="emptyState" class="empty-state">
+            <div class="empty-glyph" aria-hidden="true"><span class="glyph-cursor">_</span><span class="glyph-arrow">↗</span></div>
+            <div class="empty-eyebrow"><span class="live-pulse"></span> YOUR ROOM IS OPEN</div>
+            <h2>Send the first thing.</h2>
+            <p>Commands, snippets, little notes.<br>They show up on every connected computer.</p>
+            <div class="empty-example"><span class="example-prompt">$</span><span>Paste it in. Copy it out.</span><span class="example-copy" aria-hidden="true">⧉</span></div>
+          </div>
+        </section>
+        <button id="jumpToLatest" class="jump-latest" type="button" hidden>↓ &nbsp; New messages</button>
+        <div class="composer-wrap">
+          <form id="composerForm" class="composer">
+            <div class="composer-topline">
+              <div class="mode-switch" role="tablist" aria-label="Message type">
+                <button class="mode-button active" id="commandMode" type="button" role="tab" aria-selected="true"><span class="mode-prompt">$</span> Command</button>
+                <button class="mode-button" id="noteMode" type="button" role="tab" aria-selected="false"><span class="mode-note-icon">≡</span> Note</button>
+              </div>
+              <span id="charCount" class="char-count">0 / 6,000</span>
+            </div>
+            <label class="sr-only" for="messageInput">Type a command or note</label>
+            <textarea id="messageInput" maxlength="6000" rows="2" placeholder="Type a command to send…" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+            <div class="composer-bottomline">
+              <div class="composer-tip"><span class="tip-mark">⌘</span> Keep it moving, one snippet at a time.</div>
+              <button id="sendButton" class="send-button" type="submit" disabled><span>Send</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5"/></svg></button>
+            </div>
+          </form>
+          <div class="composer-disclaimer">Messages stay in memory until the room server restarts.</div>
+        </div>
+      </main>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+  </body>
+</html>
